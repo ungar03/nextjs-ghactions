@@ -6,16 +6,6 @@ permissions:
   contents: read
 
 on:
-  deployment_status:
-    types:
-      - 'success'
-      - 'error'
-      - 'canceled'
-      - 'ignored'
-      - 'skipped'
-      - 'pending'
-      - 'failed'
-      - 'promoted'
   repository_dispatch:
     types:
       - 'vercel.deployment.success'
@@ -40,7 +30,7 @@ jobs:
       - name: 'notify vercel'
         uses: 'vercel/repository-dispatch/actions/status@v1'
         with:
-          name: 'Vercel  - ${{ github.event.client_payload.project.name }}: Deployment'
+          name: 'Vercel - ${{ github.event.client_payload.project.name }}: lint'
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{github.event.client_payload.projectId}}
@@ -51,120 +41,22 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const status = context.payload.client_payload.state.type;
             const sha = context.payload.client_payload.git.sha ;
             const environment = context.payload.client_payload.environment;
             const targetUrl = context.payload.client_payload.target_url;
-            
-            if (!sha) {
-              console.log('❌ No SHA found in payload');
-              console.log('Payload:', JSON.stringify(context.payload.client_payload, null, 2));
-              return;
-            }
             
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               sha: sha,
               state: 'success',
-              target_url: targetUrl,
-              description: `Deployment to ${environment} succeeded`,
-              context: `vercel/${environment}`
+              context: `Vercel - ${context.payload.client_payload.project.name}: lint`,
+              description: status === 'success' ? 'Linting passed' : 'Linting failed',
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+           
             });
             
             console.log(`✅ Created success commit status for SHA ${sha}`);
       
-      - name: Create commit status for failed deployment
-        if: github.event.client_payload.state.type == 'failure' || github.event.client_payload.state.type == 'error'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.client_payload.git.sha ;
-            const environment = context.payload.client_payload.environment;
-            const targetUrl = context.payload.client_payload.target_url;
-            
-            if (!sha) {
-              console.log('❌ No SHA found in payload');
-              console.log('Payload:', JSON.stringify(context.payload.client_payload, null, 2));
-              return;
-            }
-            
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: sha,
-              state: 'failure',
-              target_url: targetUrl,
-              description: `Deployment to ${environment} failed`,
-              context: `vercel/${environment}`
-            });
-            
-            console.log(`❌ Created failure commit status for SHA ${sha}`);
-      
-  deploymentStatusEvent:
-    if: github.event_name == 'deployment_status'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log Github event payload
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Deployment ID: ${{ github.event.deployment.id }}"
-          echo "SHA: ${{ github.event.deployment.sha }}"
-          echo "State: ${{ github.event.deployment_status.state }}"
-          echo "Description: ${{ github.event.deployment_status.description }}"
-          echo "Environment: ${{ github.event.deployment.environment }}"
-          echo "Target URL: ${{ github.event.deployment_status.target_url }}"
-      
-      - name: Create commit status for successful deployment
-        if: github.event.deployment_status.state == 'success'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.deployment.sha;
-            const environment = context.payload.deployment.environment;
-            const targetUrl = context.payload.deployment_status.target_url;
-            
-            if (!sha) {
-              console.log('❌ No SHA found in deployment');
-              console.log('Deployment:', JSON.stringify(context.payload.deployment, null, 2));
-              return;
-            }
-            
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: sha,
-              state: 'success',
-              target_url: targetUrl,
-              description: `Deployment to ${environment} succeeded`,
-              context: `vercel/${environment}`
-            });
-            
-            console.log(`✅ Created success commit status for SHA ${sha}`);
-      
-      - name: Create commit status for failed deployment
-        if: github.event.deployment_status.state == 'failure' || github.event.deployment_status.state == 'error'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.deployment.sha;
-            const environment = context.payload.deployment.environment;
-            const targetUrl = context.payload.deployment_status.target_url;
-            
-            if (!sha) {
-              console.log('❌ No SHA found in deployment');
-              console.log('Deployment:', JSON.stringify(context.payload.deployment, null, 2));
-              return;
-            }
-            
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: sha,
-              state: 'failure',
-              target_url: targetUrl,
-              description: `Deployment to ${environment} failed`,
-              context: `vercel/${environment}`
-            });
-            
-            console.log(`❌ Created failure commit status for SHA ${sha}`);
      
